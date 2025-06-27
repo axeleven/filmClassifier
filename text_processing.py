@@ -103,7 +103,7 @@ def extract_features(inputs, rel_extractor):
         doc = nlp(preprocess(t))
         feats = {}
         feats.update(extract_syntax_features(doc))
-        feats.update(rel_extractor.transform(t))
+        #feats.update(rel_extractor.transform(t))
         all_features.append(feats)
     
     # Ajouter l'année comme feature directement dans chaque dictionnaire
