@@ -43,6 +43,7 @@ def extract_syntax_features(doc):
     # Sentence-level metrics
     features["avg_sent_len"] = np.mean(sentence_lengths) if sentence_lengths else 0
     features["max_tree_depth"] = max(tree_depths) if tree_depths else 0
+    features["avg_tree_depth"] = np.mean(tree_depths) if tree_depths else 0
 
     return features
 
@@ -57,20 +58,23 @@ class RelationTfidfExtractor:
     def __init__(self):
         self.vectorizers = {}  
 
-    def fit(self, texts):
+    def fit(self, inputs):
         """Fit TF-IDF vectorizers per relation type on the training data."""
         relation_texts = defaultdict(list)
-
+        texts = [input[0] for input in inputs]  # Extract texts from inputs
         for text in texts:
             doc = nlp(preprocess(text))
             for token in doc:
-                relation_texts[token.dep_].append(token.text)
+                if not token.is_stop and not token.is_punct and token.text != "'s" and token.text != "'" and token.text != "’s" and len(token.text) > 1:
+                    relation_texts[token.dep_].append(token.text)
 
         for rel, words in relation_texts.items():
+            if not words:
+                continue
             vec = TfidfVectorizer(max_features=1000, stop_words='english')
             vec.fit([" ".join(words)])
             self.vectorizers[rel] = vec
-
+    ## A revoir, je sais pas si c'est pertinent
     def transform(self, text):
         """Extract relation-wise TF-IDF features for a single text."""
         doc = nlp(preprocess(text))
@@ -81,6 +85,8 @@ class RelationTfidfExtractor:
 
         features = {}
         for rel, vec in self.vectorizers.items():
+            if rel not in rel_words or not rel_words[rel]:
+                continue
             words = " ".join(rel_words.get(rel, []))
             tfidf_vec = vec.transform([words]).toarray().flatten()
             for i, val in enumerate(tfidf_vec):
@@ -89,15 +95,20 @@ class RelationTfidfExtractor:
         return features
         
 
-def extract_features(text, rel_extractor):
-    """Combines syntactic and TF-IDF relation features.
-    Args:
-        text (str): Input text to process.
-        rel_extractor (RelationTfidfExtractor): Pre-fitted relation extractor.  
-    """
-    doc = nlp(preprocess(text))
-    features = {}
-    features.update(extract_syntax_features(doc))
-    features.update(rel_extractor.transform(text))
+def extract_features(inputs, rel_extractor):
+    text = np.array([input[0] for input in inputs])
+    years = np.array([input[1] for input in inputs])
+    all_features = []
+    for t in text:
+        doc = nlp(preprocess(t))
+        feats = {}
+        feats.update(extract_syntax_features(doc))
+        feats.update(rel_extractor.transform(t))
+        all_features.append(feats)
+    
+    # Ajouter l'année comme feature directement dans chaque dictionnaire
+    for i, feat in enumerate(all_features):
+        feat['year'] = years[i]
+    
+    return all_features
 
-    return features

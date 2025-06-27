@@ -1,6 +1,6 @@
 import numpy as np
 import xgboost as xgb
-from sklearn.metrics import accuracy_score, cohen_kappa_score, make_scorer
+from sklearn.metrics import accuracy_score, cohen_kappa_score, make_scorer, classification_report
 from sklearn.model_selection import GridSearchCV
 
 kappa_scorer = make_scorer(cohen_kappa_score)
@@ -9,14 +9,14 @@ scoring = {
     'kappa': kappa_scorer
 }
 
-def grid_search(X_train, y_train, param_grid, cv=3, scoring=scoring):
+def grid_search(X_train, y_train, param_grid, cv=2, scoring=scoring):
     xgb_clf = xgb.XGBClassifier(
         objective='multi:softmax',
         num_class=10,
         eval_metric='mlogloss',
         tree_method='hist',
-        early_stopping_rounds=50,
         random_state=42,
+        error_score='raise',
         )
     grid = GridSearchCV(
             estimator=xgb_clf,
@@ -31,11 +31,12 @@ def grid_search(X_train, y_train, param_grid, cv=3, scoring=scoring):
     return grid.best_params_, grid.best_score_, grid.best_estimator_
 
 params = {
-        'n_estimators': [200, 300, 400, 500],
-        'max_depth': [6, 7, 8, 9, 10],
-        'learning_rate': [0.01, 0.05, 0.1, 0.2],
-        'subsample': [0.5, 0.7, 0.9, 1.0],
+        'n_estimators': [400],
+        'max_depth': [9],
+        'learning_rate': [0.05,0.1, 0.15],
+        'subsample': [0.7, 0.8],
         'colsample_bytree': [0.5],
+        'gamma': [0, 0.1, 0.2],
     }
 
 dtrain = np.load("X_train_scaled.npy")
@@ -43,4 +44,9 @@ dtest = np.load("X_test_scaled.npy")
 ytrain = np.load("y_train.npy")
 ytest = np.load("y_test.npy")
 
-print(grid_search(dtrain, ytrain, params, cv=3, scoring=scoring))
+best_params, _, best_estimator = grid_search(dtrain, ytrain, params, cv=2, scoring=scoring)
+
+ypred = best_estimator.predict(dtest)
+print("Best parameters:", best_params)
+print(classification_report(ytest, ypred))
+print(cohen_kappa_score(ytest, ypred))
